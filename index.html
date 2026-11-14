@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kamisuki Noise Studio — 高解析度灰階纖維轉換工具</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0e1014;
+      color: #e5e7eb;
+    }
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+    /* Custom range slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      background: #272b36;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #e2b878;
+      cursor: pointer;
+      border: 2px solid #0e1014;
+      box-shadow: 0 0 0 1px rgba(226, 184, 120, 0.4);
+      transition: transform 0.12s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #e2b878;
+      cursor: pointer;
+      border: 2px solid #0e1014;
+    }
+    /* Checkerboard background for viewport */
+    .canvas-bg {
+      background-color: #13161c;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0);
+      background-size: 20px 20px;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2b303c;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3d4455;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden select-none">
+
+  <!-- Top Toolbar -->
+  <header class="h-14 shrink-0 border-b border-zinc-800/80 bg-[#13161c]/95 backdrop-blur px-3 sm:px-5 flex items-center justify-between gap-2 z-20">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-300/20 to-amber-600/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 7c4-2 8 2 12 0s4 2 4 2M4 12c4-2 8 2 12 0s4 2 4 2M4 17c4-2 8 2 12 0s4 2 4 2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-sm font-semibold tracking-tight text-zinc-100 truncate">Kamisuki Noise Studio</h1>
+        <p class="text-[11px] text-zinc-400 hidden sm:block truncate">和紙抄造 Gabor 纖維雜訊 • 高解析度分塊算圖</p>
+      </div>
+    </div>
+
+    <!-- Center Quick Actions -->
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <label for="fileInput" class="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-100 border border-zinc-700 transition">
+        <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>載入圖片</span>
+      </label>
+      <input id="fileInput" type="file" accept="image/*" class="hidden" />
+
+      <select id="sampleSelect" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 border border-zinc-700 outline-none cursor-pointer hidden md:block">
+        <option value="sphere">範例：立體球體光影</option>
+        <option value="mountain">範例：層巒山嵐</option>
+        <option value="portrait">範例：抽象人像輪廓</option>
+        <option value="gradient">範例：線性漸層測試卡</option>
+      </select>
+
+      <div class="hidden lg:flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
+        <button data-view="result" class="view-btn px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-700 text-white transition">轉換結果</button>
+        <button data-view="split" class="view-btn px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-zinc-200 transition">對比分割</button>
+        <button data-view="original" class="view-btn px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 hover:text-zinc-200 transition">原始灰階</button>
+      </div>
+    </div>
+
+    <!-- Right Export & Shader Code -->
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button id="btnShaderModal" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-xs font-medium text-zinc-300 border border-zinc-700/80 transition" title="檢視 GLSL Shader">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+        <span class="hidden sm:inline">GLSL</span>
+      </button>
+
+      <button id="btnOpenExport" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 text-xs font-semibold shadow-sm transition">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>高解析匯出</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+
+    <!-- Left/Center Viewport -->
+    <main id="viewportContainer" class="relative flex-1 canvas-bg overflow-hidden flex items-center justify-center min-h-[380px] lg:min-h-0">
+      <!-- WebGL Preview Canvas -->
+      <div id="canvasWrapper" class="relative shadow-2xl shadow-black/70 ring-1 ring-white/10 transition-transform duration-75 ease-out origin-center">
+        <canvas id="glCanvas" class="block max-w-none"></canvas>
+        <!-- Split Divider Line -->
+        <div id="splitLine" class="hidden absolute top-0 bottom-0 w-0.5 bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.8)] pointer-events-none">
+          <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-amber-300 text-zinc-950 flex items-center justify-center shadow-md text-[10px] font-bold">
+            ↔
+          </div>
+        </div>
+      </div>
+
+      <!-- Drag & Drop Overlay -->
+      <div id="dropOverlay" class="hidden absolute inset-4 rounded-2xl border-2 border-dashed border-amber-300/80 bg-zinc-950/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center gap-2 pointer-events-none">
+        <svg class="w-10 h-10 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="text-sm font-medium text-amber-200">放開滑鼠以載入圖片</p>
+      </div>
+
+      <!-- Bottom Floating Viewport HUD -->
+      <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div class="pointer-events-auto flex items-center gap-2 bg-[#13161c]/90 backdrop-blur border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-300 shadow-lg">
+          <span id="imgDimBadge" class="font-mono text-amber-300">1024 × 1024</span>
+          <span class="text-zinc-600">|</span>
+          <span id="zoomBadge" class="font-mono">100%</span>
+          <button id="btnZoomFit" class="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition">符合視窗</button>
+          <button id="btnZoom100" class="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition">1:1 像素</button>
+        </div>
+
+        <div class="pointer-events-auto flex lg:hidden items-center bg-[#13161c]/90 backdrop-blur rounded-lg p-0.5 border border-zinc-800 shadow-lg">
+          <button data-view="result" class="view-btn px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-700 text-white">結果</button>
+          <button data-view="split" class="view-btn px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400">對比</button>
+          <button data-view="original" class="view-btn px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400">原圖</button>
+        </div>
+      </div>
+
+      <!-- Mobile sample selector -->
+      <div class="absolute top-3 left-3 md:hidden">
+        <select id="sampleSelectMobile" class="bg-[#13161c]/90 backdrop-blur text-zinc-200 text-xs rounded-lg px-2 py-1 border border-zinc-800 outline-none">
+          <option value="sphere">範例：立體球體</option>
+          <option value="mountain">範例：層巒山嵐</option>
+          <option value="portrait">範例：抽象輪廓</option>
+          <option value="gradient">範例：漸層測試</option>
+        </select>
+      </div>
+    </main>
+
+    <!-- Right Control Sidebar -->
+    <aside class="w-full lg:w-[360px] xl:w-[390px] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800/80 bg-[#13161c] flex flex-col max-h-[52vh] lg:max-h-none overflow-y-auto">
+
+      <!-- Presets Bar -->
+      <div class="p-3.5 border-b border-zinc-800/80">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-zinc-400">風格預設 (Presets)</span>
+          <button id="btnResetParams" class="text-[11px] text-amber-300/90 hover:text-amber-200 transition">重設參數</button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-1.5">
+          <button data-preset="washi" class="preset-btn px-2.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/70 text-xs text-left transition">
+            <div class="font-medium text-zinc-100">和紙墨染</div>
+            <div class="text-[10px] text-zinc-400">Washi & Sumi</div>
+          </button>
+          <button data-preset="woodblock" class="preset-btn px-2.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/70 text-xs text-left transition">
+            <div class="font-medium text-zinc-100">木版網屏</div>
+            <div class="text-[10px] text-zinc-400">Crisp Halftone</div>
+          </button>
+          <button data-preset="fiberfield" class="preset-btn px-2.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/70 text-xs text-left transition">
+            <div class="font-medium text-zinc-100">柔和纖維場</div>
+            <div class="text-[10px] text-zinc-400">Soft Continuous</div>
+          </button>
+          <button data-preset="aizome" class="preset-btn px-2.5 py-1.5 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 border border-zinc-700/70 text-xs text-left transition">
+            <div class="font-medium text-zinc-100">藍染細絲</div>
+            <div class="text-[10px] text-zinc-400">Indigo Fine Fiber</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls Accordion/Sections -->
+      <div class="p-3.5 space-y-5">
+
+        <!-- Section 1: Grayscale Mapping -->
+        <section class="space-y-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+            <span>灰階映射 (Grayscale Mapping)</span>
+          </h2>
+
+          <div class="space-y-1">
+            <label class="text-xs text-zinc-300">映射模式</label>
+            <select id="mappingMode" class="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 outline-none focus:border-amber-400/60">
+              <option value="0">半徑調變 (Radius r — 原作風格)</option>
+              <option value="1">閾值網屏 (Halftone Threshold)</option>
+              <option value="2" selected>混合調變 (Hybrid r + Threshold)</option>
+              <option value="3">波數與融合調變 (Waves + Blend)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between pt-0.5">
+            <label for="invertGray" class="text-xs text-zinc-300 cursor-pointer">反轉灰階 (Invert Luminance)</label>
+            <input id="invertGray" type="checkbox" class="w-4 h-4 accent-amber-400 rounded cursor-pointer" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">對比度 (Contrast)</span>
+              <span id="valContrast" class="font-mono text-amber-300">1.10</span>
+            </div>
+            <input id="contrast" type="range" min="0.2" max="3.0" step="0.05" value="1.10" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">亮度偏移 (Brightness)</span>
+              <span id="valBrightness" class="font-mono text-amber-300">0.00</span>
+            </div>
+            <input id="brightness" type="range" min="-0.5" max="0.5" step="0.01" value="0.00" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">Gamma 曲線</span>
+              <span id="valGamma" class="font-mono text-amber-300">1.00</span>
+            </div>
+            <input id="gamma" type="range" min="0.3" max="2.5" step="0.05" value="1.00" class="w-full" />
+          </div>
+        </section>
+
+        <hr class="border-zinc-800/80" />
+
+        <!-- Section 2: Kamisuki Noise Core -->
+        <section class="space-y-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Kamisuki 參數 (Shader Core)</h2>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">纖維密度 (Scale)</span>
+              <span id="valScale" class="font-mono text-amber-300">36.0</span>
+            </div>
+            <input id="scale" type="range" min="4" max="150" step="1" value="36" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">單核波數 (n: waves/kernel)</span>
+              <span id="valWaves" class="font-mono text-amber-300">2.40</span>
+            </div>
+            <input id="waves" type="range" min="0.5" max="8.0" step="0.05" value="2.4" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">最大旋轉角 (a: max rotation)</span>
+              <span id="valRotation" class="font-mono text-amber-300">3.14</span>
+            </div>
+            <input id="rotation" type="range" min="0" max="6.283" step="0.02" value="3.14159" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">基礎半徑 (r: base radius)</span>
+              <span id="valRadius" class="font-mono text-amber-300">0.20</span>
+            </div>
+            <input id="radius" type="range" min="-0.3" max="1.2" step="0.01" value="0.20" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">灰階半徑增幅 (r modulation)</span>
+              <span id="valRadiusMod" class="font-mono text-amber-300">0.65</span>
+            </div>
+            <input id="radiusMod" type="range" min="-1.0" max="1.5" step="0.01" value="0.65" class="w-full" />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-zinc-300">融合強度 (k: smin blend)</span>
+              <span id="valBlend" class="font-mono text-amber-300">0.125</span>
+            </div>
+            <input id="blend" type="range" min="0.005" max="0.45" step="0.005" value="0.125" class="w-full" />
+          </div>
+        </section>
+
+        <hr class="border-zinc-800/80" />
+
+        <!-- Section 3: Threshold & Coloring -->
+        <section class="space-y-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">二值化與紙墨色彩 (Finish)</h2>
+
+          <div class="flex items-center justify-between">
+            <label for="useThreshold" class="text-xs text-zinc-300 cursor-pointer">啟用平滑閾值 (smoothstep)</label>
+            <input id="useThreshold" type="checkbox" checked class="w-4 h-4 accent-amber-400 rounded cursor-pointer" />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label for="invertColor" class="text-xs text-zinc-300 cursor-pointer">顏色反轉 (Invert Output Color)</label>
+            <input id="invertColor" type="checkbox" checked class="w-4 h-4 accent-amber-400 rounded cursor-pointer" />
+          </div>
+
+          <div id="thresholdGroup" class="space-y-3">
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs">
+                <span class="text-zinc-300">閾值基準 (Threshold)</span>
+                <span id="valThreshold" class="font-mono text-amber-300">0.50</span>
+              </div>
+              <input id="threshold" type="range" min="0.05" max="1.20" step="0.01" value="0.50" class="w-full" />
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs">
+                <span class="text-zinc-300">邊緣抗鋸齒柔度 (AA Width)</span>
+                <span id="valAA" class="font-mono text-amber-300">1.50</span>
+              </div>
+              <input id="aaWidth" type="range" min="0.1" max="8.0" step="0.1" value="1.5" class="w-full" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div class="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5">
+              <span class="text-xs text-zinc-300">紙張底色</span>
+              <input id="paperColor" type="color" value="#f3ede0" class="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0" />
+            </div>
+            <div class="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5">
+              <span class="text-xs text-zinc-300">纖維墨色</span>
+              <input id="inkColor" type="color" value="#1c1917" class="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0" />
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+  </div>
+
+  <!-- High-Res Export Modal -->
+  <div id="exportModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#161922] border border-zinc-700/80 rounded-2xl shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-zinc-100">高解析度無縫分塊匯出 (PNG)</h3>
+        <button id="btnCloseExport" class="text-zinc-400 hover:text-zinc-200 text-lg leading-none">&times;</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-xs text-zinc-400 leading-relaxed">
+          使用 1024×1024 GPU 分塊算圖與解析度無關的導數抗鋸齒 (<code class="text-amber-300">fwidth</code>)，可安全輸出 4K / 8K 甚至更高解析度而不會造成瀏覽器當機。
+        </p>
+
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-zinc-300">輸出倍率 / 尺寸預設</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-scale="1" class="exp-preset-btn px-3 py-2 rounded-lg bg-amber-400/15 border border-amber-400/60 text-xs text-left">
+              <div class="font-semibold text-amber-300">1× 原圖解析度</div>
+              <div id="expDim1x" class="text-[11px] text-zinc-400 font-mono">1024 × 1024</div>
+            </button>
+            <button data-scale="2" class="exp-preset-btn px-3 py-2 rounded-lg bg-zinc-800/80 border border-zinc-700 text-xs text-left hover:bg-zinc-800">
+              <div class="font-semibold text-zinc-200">2× 超取樣</div>
+              <div id="expDim2x" class="text-[11px] text-zinc-400 font-mono">2048 × 2048</div>
+            </button>
+            <button data-scale="4" class="exp-preset-btn px-3 py-2 rounded-lg bg-zinc-800/80 border border-zinc-700 text-xs text-left hover:bg-zinc-800">
+              <div class="font-semibold text-zinc-200">4× 印刷級</div>
+              <div id="expDim4x" class="text-[11px] text-zinc-400 font-mono">4096 × 4096</div>
+            </button>
+            <button data-scale="custom" class="exp-preset-btn px-3 py-2 rounded-lg bg-zinc-800/80 border border-zinc-700 text-xs text-left hover:bg-zinc-800">
+              <div class="font-semibold text-zinc-200">自訂寬高</div>
+              <div class="text-[11px] text-zinc-400">維持比例或手動</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-[11px] text-zinc-400">寬度 (px)</label>
+            <input id="exportWidth" type="number" min="64" max="12288" value="1024" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-100 outline-none focus:border-amber-400" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-[11px] text-zinc-400">高度 (px)</label>
+            <input id="exportHeight" type="number" min="64" max="12288" value="1024" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-100 outline-none focus:border-amber-400" />
+          </div>
+        </div>
+
+        <div id="exportProgressWrap" class="hidden space-y-1.5">
+          <div class="flex justify-between text-[11px] text-zinc-300">
+            <span id="exportStatusText">準備分塊算圖...</span>
+            <span id="exportPercentText" class="font-mono text-amber-300">0%</span>
+          </div>
+          <div class="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+            <div id="exportProgressBar" class="h-full bg-amber-400 transition-all duration-150" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button id="btnCancelExport" class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 transition">取消</button>
+          <button id="btnStartExport" class="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-xs font-semibold text-zinc-950 transition">開始算圖並下載</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GLSL Code Modal -->
+  <div id="shaderModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl bg-[#161922] border border-zinc-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-zinc-100">Fragment Shader (WebGL2 / GLSL 300 es)</h3>
+        <div class="flex items-center gap-2">
+          <button id="btnCopyShader" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-amber-300 border border-zinc-700 transition">複製程式碼</button>
+          <button id="btnCloseShader" class="text-zinc-400 hover:text-zinc-200 text-lg leading-none">&times;</button>
+        </div>
+      </div>
+      <pre id="shaderCodeView" class="p-4 text-[11px] leading-relaxed text-zinc-300 overflow-auto font-mono bg-[#0d0f14]"></pre>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-zinc-900/95 border border-amber-400/40 text-xs text-zinc-100 shadow-xl"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // =========================================================================
+  // 1. GLSL Shaders (WebGL2 / GLSL 300 es)
+  // =========================================================================
+  const VERT_SRC = `#version 300 es
+  in vec2 aPos;
+  void main() {
+    gl_Position = vec4(aPos, 0.0, 1.0);
+  }`;
+
+  const FRAG_SRC = `#version 300 es
+  precision highp float;
+
+  uniform sampler2D uImage;
+  uniform vec2 uFullResolution;
+  uniform vec2 uTileOffset;
+
+  // Grayscale preprocessing
+  uniform int uMappingMode; // 0: Radius, 1: Threshold, 2: Hybrid, 3: Wave & Blend
+  uniform float uInvert;
+  uniform float uContrast;
+  uniform float uBrightness;
+  uniform float uGamma;
+
+  // Kamisuki parameters
+  uniform float uScale;
+  uniform float uWaves;
+  uniform float uRotation;
+  uniform float uRadius;
+  uniform float uRadiusMod;
+  uniform float uBlend;
+
+  // Threshold & Colors
+  uniform int uUseThreshold;
+  uniform float uThreshold;
+  uniform float uAAWidth;
+  uniform float uInvertColor;
+  uniform vec3 uPaperColor;
+  uniform vec3 uInkColor;
+
+  // Viewport comparison mode: 0 = result, 1 = split, 2 = original
+  uniform int uViewMode;
+  uniform float uSplitPos;
+
+  out vec4 fragColor;
+
+  #define PI acos(-1.0)
+
+  // "Hash without Sine" by Dave_Hoskins
+  // https://www.shadertoy.com/view/4djSRW
+  vec2 hash22(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+  }
+
+  // "A list of Smooth-minimums" by iq
+  // https://iquilezles.org/articles/smin/
+  float smin(float a, float b, float k) {
+    k *= 6.0;
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * h * k * (1.0 / 6.0);
+  }
+
+  float KamisukiNoise(vec2 p, float n, float a, float r, float k) {
+    vec2 ip = round(p);
+    float total = 8.0;
+    for (int y = -2; y <= 2; y++) {
+      for (int x = -2; x <= 2; x++) {
+        vec2 cell = ip + vec2(float(x), float(y));
+        vec2 o = hash22(cell + 2.0) * 2.0 - 1.0;
+        vec2 lp = p - cell;
+        float d = length(lp) - r;
+        float la = o.x * a;
+        float c = cos(la);
+        float s = sin(la);
+        lp *= mat2(c, s, -s, c);
+        d = -smin(-(sin(lp.y * PI * 2.0 * n) * 0.5 + 0.5), -d, k);
+        total = smin(total, d, k);
+      }
+    }
+    return total;
+  }
+
+  float sampleLuminance(vec2 texUV) {
+    vec3 rgb = texture(uImage, clamp(texUV, 0.0, 1.0)).rgb;
+    float lum = dot(rgb, vec3(0.299, 0.587, 0.114));
+    lum = clamp((lum - 0.5) * uContrast + 0.5 + uBrightness, 0.0, 1.0);
+    lum = pow(lum, max(uGamma, 0.01));
+    if (uInvert > 0.5) {
+      lum = 1.0 - lum;
+    }
+    return lum;
+  }
+
+  void main() {
+    vec2 globalCoord = gl_FragCoord.xy + uTileOffset;
+    vec2 texUV = globalCoord / uFullResolution;
+
+    float lum = sampleLuminance(texUV);
+
+    if (uViewMode == 2 || (uViewMode == 1 && texUV.x < uSplitPos)) {
+      fragColor = vec4(vec3(lum), 1.0);
+      return;
+    }
+
+    // Aspect-ratio preserved UV (matching Shadertoy mainImage)
+    vec2 uv = (globalCoord - uFullResolution * 0.5) / uFullResolution.y;
+
+    float localN = uWaves;
+    float localA = uRotation;
+    float localR = uRadius;
+    float localK = uBlend;
+    float localThresh = uThreshold;
+
+    if (uMappingMode == 0) {
+      // Radius modulation (original style: r driven by luminance)
+      localR = uRadius + lum * uRadiusMod;
+    } else if (uMappingMode == 1) {
+      // Threshold halftone screening
+      localR = uRadius + uRadiusMod * 0.5;
+      localThresh = uThreshold + (lum - 0.5) * 0.9;
+    } else if (uMappingMode == 2) {
+      // Hybrid: both radius & threshold respond to grayscale
+      localR = uRadius + lum * uRadiusMod;
+      localThresh = uThreshold + (lum - 0.5) * 0.45;
+    } else {
+      // Wave & Blend modulation
+      localR = uRadius + lum * uRadiusMod;
+      localN = max(0.3, uWaves * mix(0.65, 1.45, lum));
+      localK = max(0.004, uBlend * mix(1.4, 0.6, lum));
+    }
+
+    float nVal = KamisukiNoise(uv * uScale, localN, localA, localR, localK);
+
+    float outVal = nVal;
+    if (uUseThreshold == 1) {
+      // Resolution-independent screen-space derivative AA
+      float fw = fwidth(nVal);
+      float aa = max(fw * uAAWidth, 0.0005);
+      outVal = smoothstep(localThresh - aa, localThresh + aa, nVal);
+    } else {
+      outVal = clamp(nVal, 0.0, 1.0);
+    }
+
+    if (uInvertColor > 0.5) {
+      outVal = 1.0 - outVal;
+    }
+
+    vec3 col = mix(uInkColor, uPaperColor, outVal);
+    fragColor = vec4(col, 1.0);
+  }`;
+
+  // =========================================================================
+  // 2. State & DOM References
+  // =========================================================================
+  const state = {
+    imgWidth: 1024,
+    imgHeight: 1024,
+    viewMode: 0, // 0: result, 1: split, 2: original
+    splitPos: 0.5,
+    zoom: 1.0,
+    panX: 0,
+    panY: 0,
+    fitMode: true,
+    params: {
+      mappingMode: 2,
+      invert: false,
+      contrast: 1.10,
+      brightness: 0.0,
+      gamma: 1.0,
+      scale: 36.0,
+      waves: 2.4,
+      rotation: Math.PI,
+      radius: 0.20,
+      radiusMod: 0.65,
+      blend: 0.125,
+      useThreshold: true,
+      invertColor: true,
+      threshold: 0.50,
+      aaWidth: 1.5,
+      paperColor: '#f3ede0',
+      inkColor: '#1c1917'
+    }
+  };
+
+  const el = {
+    glCanvas: document.getElementById('glCanvas'),
+    canvasWrapper: document.getElementById('canvasWrapper'),
+    viewport: document.getElementById('viewportContainer'),
+    splitLine: document.getElementById('splitLine'),
+    dropOverlay: document.getElementById('dropOverlay'),
+    fileInput: document.getElementById('fileInput'),
+    sampleSelect: document.getElementById('sampleSelect'),
+    sampleSelectMobile: document.getElementById('sampleSelectMobile'),
+    imgDimBadge: document.getElementById('imgDimBadge'),
+    zoomBadge: document.getElementById('zoomBadge'),
+    btnZoomFit: document.getElementById('btnZoomFit'),
+    btnZoom100: document.getElementById('btnZoom100'),
+    btnResetParams: document.getElementById('btnResetParams'),
+    // Controls
+    mappingMode: document.getElementById('mappingMode'),
+    invertGray: document.getElementById('invertGray'),
+    contrast: document.getElementById('contrast'),
+    brightness: document.getElementById('brightness'),
+    gamma: document.getElementById('gamma'),
+    scale: document.getElementById('scale'),
+    waves: document.getElementById('waves'),
+    rotation: document.getElementById('rotation'),
+    radius: document.getElementById('radius'),
+    radiusMod: document.getElementById('radiusMod'),
+    blend: document.getElementById('blend'),
+    useThreshold: document.getElementById('useThreshold'),
+    invertColor: document.getElementById('invertColor'),
+    thresholdGroup: document.getElementById('thresholdGroup'),
+    threshold: document.getElementById('threshold'),
+    aaWidth: document.getElementById('aaWidth'),
+    paperColor: document.getElementById('paperColor'),
+    inkColor: document.getElementById('inkColor'),
+    // Value readouts
+    valContrast: document.getElementById('valContrast'),
+    valBrightness: document.getElementById('valBrightness'),
+    valGamma: document.getElementById('valGamma'),
+    valScale: document.getElementById('valScale'),
+    valWaves: document.getElementById('valWaves'),
+    valRotation: document.getElementById('valRotation'),
+    valRadius: document.getElementById('valRadius'),
+    valRadiusMod: document.getElementById('valRadiusMod'),
+    valBlend: document.getElementById('valBlend'),
+    valThreshold: document.getElementById('valThreshold'),
+    valAA: document.getElementById('valAA'),
+    // Export modal
+    exportModal: document.getElementById('exportModal'),
+    btnOpenExport: document.getElementById('btnOpenExport'),
+    btnCloseExport: document.getElementById('btnCloseExport'),
+    btnCancelExport: document.getElementById('btnCancelExport'),
+    btnStartExport: document.getElementById('btnStartExport'),
+    exportWidth: document.getElementById('exportWidth'),
+    exportHeight: document.getElementById('exportHeight'),
+    expDim1x: document.getElementById('expDim1x'),
+    expDim2x: document.getElementById('expDim2x'),
+    expDim4x: document.getElementById('expDim4x'),
+    exportProgressWrap: document.getElementById('exportProgressWrap'),
+    exportProgressBar: document.getElementById('exportProgressBar'),
+    exportStatusText: document.getElementById('exportStatusText'),
+    exportPercentText: document.getElementById('exportPercentText'),
+    // Shader modal
+    shaderModal: document.getElementById('shaderModal'),
+    btnShaderModal: document.getElementById('btnShaderModal'),
+    btnCloseShader: document.getElementById('btnCloseShader'),
+    btnCopyShader: document.getElementById('btnCopyShader'),
+    shaderCodeView: document.getElementById('shaderCodeView'),
+    toast: document.getElementById('toast')
+  };
+
+  // =========================================================================
+  // 3. WebGL2 Engine Setup (Preview + Offscreen Tile Renderer)
+  // =========================================================================
+  function createGLContext(canvas) {
+    const gl = canvas.getContext('webgl2', {
+      alpha: false,
+      antialias: false,
+      preserveDrawingBuffer: true
+    });
+    if (!gl) return null;
+
+    const compile = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(s));
+        return null;
+      }
+      return s;
+    };
+
+    const vs = compile(gl.VERTEX_SHADER, VERT_SRC);
+    const fs = compile(gl.FRAGMENT_SHADER, FRAG_SRC);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(prog));
+      return null;
+    }
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const loc = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    const uniforms = {};
+    const names = [
+      'uImage', 'uFullResolution', 'uTileOffset',
+      'uMappingMode', 'uInvert', 'uContrast', 'uBrightness', 'uGamma',
+      'uScale', 'uWaves', 'uRotation', 'uRadius', 'uRadiusMod', 'uBlend',
+      'uUseThreshold', 'uThreshold', 'uAAWidth', 'uInvertColor', 'uPaperColor', 'uInkColor',
+      'uViewMode', 'uSplitPos'
+    ];
+    names.forEach(n => { uniforms[n] = gl.getUniformLocation(prog, n); });
+
+    return { gl, prog, vao, tex, uniforms };
+  }
+
+  const previewEngine = createGLContext(el.glCanvas);
+  if (!previewEngine) {
+    showToast('您的瀏覽器不支援 WebGL2，無法執行著色器。');
+    return;
+  }
+
+  let currentSourceCanvas = null; // Holds the loaded image at native resolution
+
+  function hexToRgbNorm(hex) {
+    const clean = hex.replace('#', '');
+    const num = parseInt(clean, 16);
+    return [
+      ((num >> 16) & 255) / 255,
+      ((num >> 8) & 255) / 255,
+      (num & 255) / 255
+    ];
+  }
+
+  function uploadTexture(engine, source) {
+    const { gl, tex } = engine;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  }
+
+  function drawScene(engine, fullW, fullH, tileX, tileY, tileW, tileH, viewModeOverride = null) {
+    const { gl, prog, vao, tex, uniforms } = engine;
+    gl.viewport(0, 0, tileW, tileH);
+    gl.useProgram(prog);
+    gl.bindVertexArray(vao);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(uniforms.uImage, 0);
+
+    gl.uniform2f(uniforms.uFullResolution, fullW, fullH);
+    gl.uniform2f(uniforms.uTileOffset, tileX, tileY);
+
+    const p = state.params;
+    gl.uniform1i(uniforms.uMappingMode, p.mappingMode);
+    gl.uniform1f(uniforms.uInvert, p.invert ? 1.0 : 0.0);
+    gl.uniform1f(uniforms.uContrast, p.contrast);
+    gl.uniform1f(uniforms.uBrightness, p.brightness);
+    gl.uniform1f(uniforms.uGamma, p.gamma);
+
+    gl.uniform1f(uniforms.uScale, p.scale);
+    gl.uniform1f(uniforms.uWaves, p.waves);
+    gl.uniform1f(uniforms.uRotation, p.rotation);
+    gl.uniform1f(uniforms.uRadius, p.radius);
+    gl.uniform1f(uniforms.uRadiusMod, p.radiusMod);
+    gl.uniform1f(uniforms.uBlend, p.blend);
+
+    gl.uniform1i(uniforms.uUseThreshold, p.useThreshold ? 1 : 0);
+    gl.uniform1f(uniforms.uThreshold, p.threshold);
+    gl.uniform1f(uniforms.uAAWidth, p.aaWidth);
+    gl.uniform1f(uniforms.uInvertColor, p.invertColor ? 1.0 : 0.0);
+
+    const paper = hexToRgbNorm(p.paperColor);
+    const ink = hexToRgbNorm(p.inkColor);
+    gl.uniform3f(uniforms.uPaperColor, paper[0], paper[1], paper[2]);
+    gl.uniform3f(uniforms.uInkColor, ink[0], ink[1], ink[2]);
+
+    gl.uniform1i(uniforms.uViewMode, viewModeOverride !== null ? viewModeOverride : state.viewMode);
+    gl.uniform1f(uniforms.uSplitPos, state.splitPos);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  let rafPending = false;
+  function requestRender() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      renderPreview();
+    });
+  }
+
+  function renderPreview() {
+    if (!currentSourceCanvas) return;
+    // Cap preview canvas size at 2048px on longest side for snappy 60fps interaction,
+    // while export renders at full/4K/8K resolution via tiled renderer.
+    const maxPreview = 2048;
+    const scale = Math.min(1, maxPreview / Math.max(state.imgWidth, state.imgHeight));
+    const pw = Math.max(1, Math.round(state.imgWidth * scale));
+    const ph = Math.max(1, Math.round(state.imgHeight * scale));
+
+    if (el.glCanvas.width !== pw || el.glCanvas.height !== ph) {
+      el.glCanvas.width = pw;
+      el.glCanvas.height = ph;
+    }
+
+    drawScene(previewEngine, pw, ph, 0, 0, pw, ph);
+    updateViewportTransform();
+  }
+
+  // =========================================================================
+  // 4. Viewport Pan, Zoom & Split Compare
+  // =========================================================================
+  function fitToViewport() {
+    const rect = el.viewport.getBoundingClientRect();
+    const pad = 40;
+    const availW = Math.max(100, rect.width - pad);
+    const availH = Math.max(100, rect.height - pad);
+    const pw = el.glCanvas.width || 1024;
+    const ph = el.glCanvas.height || 1024;
+    state.zoom = Math.min(availW / pw, availH / ph);
+    state.panX = 0;
+    state.panY = 0;
+    state.fitMode = true;
+    updateViewportTransform();
+  }
+
+  function updateViewportTransform() {
+    el.canvasWrapper.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+    const effectiveScale = state.zoom * ((el.glCanvas.width || 1) / (state.imgWidth || 1));
+    el.zoomBadge.textContent = `${Math.round(effectiveScale * 100)}%`;
+
+    if (state.viewMode === 1) {
+      el.splitLine.classList.remove('hidden');
+      el.splitLine.style.left = `${state.splitPos * 100}%`;
+    } else {
+      el.splitLine.classList.add('hidden');
+    }
+  }
+
+  // Mouse pan & split drag
+  let isDragging = false;
+  let dragMode = 'pan';
+  let lastX = 0;
+  let lastY = 0;
+
+  el.viewport.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, select, input, label')) return;
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    if (state.viewMode === 1 && !e.shiftKey) {
+      const rect = el.canvasWrapper.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      if (Math.abs(relX - state.splitPos) < 0.08) {
+        dragMode = 'split';
+      } else {
+        dragMode = 'pan';
+      }
+    } else {
+      dragMode = 'pan';
+    }
+    el.viewport.setPointerCapture(e.pointerId);
+  });
+
+  el.viewport.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    if (dragMode === 'split') {
+      const rect = el.canvasWrapper.getBoundingClientRect();
+      state.splitPos = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      requestRender();
+    } else {
+      state.panX += e.clientX - lastX;
+      state.panY += e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      state.fitMode = false;
+      updateViewportTransform();
+    }
+  });
+
+  el.viewport.addEventListener('pointerup', (e) => {
+    isDragging = false;
+    try { el.viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  el.viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    state.zoom = Math.min(12, Math.max(0.05, state.zoom * factor));
+    state.fitMode = false;
+    updateViewportTransform();
+  }, { passive: false });
+
+  el.btnZoomFit.addEventListener('click', fitToViewport);
+  el.btnZoom100.addEventListener('click', () => {
+    const ratio = state.imgWidth / (el.glCanvas.width || state.imgWidth);
+    state.zoom = ratio;
+    state.panX = 0;
+    state.panY = 0;
+    state.fitMode = false;
+    updateViewportTransform();
+  });
+
+  window.addEventListener('resize', () => {
+    if (state.fitMode) fitToViewport();
+  });
+
+  // =========================================================================
+  // 5. Image Loading & Built-in Procedural Grayscale Samples
+  // =========================================================================
+  function setSourceCanvas(canvas) {
+    currentSourceCanvas = canvas;
+    state.imgWidth = canvas.width;
+    state.imgHeight = canvas.height;
+    el.imgDimBadge.textContent = `${canvas.width} × ${canvas.height}`;
+    uploadTexture(previewEngine, canvas);
+    renderPreview();
+    fitToViewport();
+    updateExportPresetLabels();
+  }
+
+  function generateSampleImage(type) {
+    const size = 1024;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+
+    if (type === 'sphere') {
+      // Soft dark studio backdrop
+      const bg = ctx.createLinearGradient(0, 0, 0, size);
+      bg.addColorStop(0, '#1e1e1e');
+      bg.addColorStop(0.68, '#383838');
+      bg.addColorStop(1, '#141414');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+
+      // Cast shadow
+      ctx.save();
+      ctx.translate(size * 0.54, size * 0.77);
+      ctx.scale(1, 0.28);
+      const sh = ctx.createRadialGradient(0, 0, 20, 0, 0, 280);
+      sh.addColorStop(0, 'rgba(0,0,0,0.85)');
+      sh.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sh;
+      ctx.beginPath();
+      ctx.arc(0, 0, 280, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 3D Lit Sphere
+      const sp = ctx.createRadialGradient(size * 0.39, size * 0.36, 20, size * 0.5, size * 0.48, 300);
+      sp.addColorStop(0, '#ffffff');
+      sp.addColorStop(0.35, '#cfcfcf');
+      sp.addColorStop(0.75, '#4c4c4c');
+      sp.addColorStop(1, '#121212');
+      ctx.fillStyle = sp;
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.48, 290, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'mountain') {
+      const sky = ctx.createLinearGradient(0, 0, 0, size);
+      sky.addColorStop(0, '#ececec');
+      sky.addColorStop(0.55, '#9e9e9e');
+      sky.addColorStop(1, '#262626');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, size, size);
+
+      // Sun
+      const sun = ctx.createRadialGradient(size * 0.72, size * 0.25, 10, size * 0.72, size * 0.25, 140);
+      sun.addColorStop(0, '#ffffff');
+      sun.addColorStop(0.45, '#f2f2f2');
+      sun.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sun;
+      ctx.beginPath();
+      ctx.arc(size * 0.72, size * 0.25, 140, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Layered ridges
+      const layers = [
+        { y: 460, amp: 80, freq: 0.005, col: '#7d7d7d', seed: 1.2 },
+        { y: 580, amp: 95, freq: 0.007, col: '#525252', seed: 2.7 },
+        { y: 710, amp: 70, freq: 0.009, col: '#2c2c2c', seed: 4.1 },
+        { y: 840, amp: 45, freq: 0.012, col: '#141414', seed: 5.5 }
+      ];
+      layers.forEach(l => {
+        ctx.fillStyle = l.col;
+        ctx.beginPath();
+        ctx.moveTo(0, size);
+        for (let x = 0; x <= size; x += 8) {
+          const y = l.y + Math.sin(x * l.freq + l.seed) * l.amp + Math.cos(x * l.freq * 2.3) * (l.amp * 0.35);
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(size, size);
+        ctx.closePath();
+        ctx.fill();
+      });
+    } else if (type === 'portrait') {
+      ctx.fillStyle = '#181818';
+      ctx.fillRect(0, 0, size, size);
+      const glow = ctx.createRadialGradient(size * 0.5, size * 0.45, 40, size * 0.5, size * 0.45, 460);
+      glow.addColorStop(0, '#dedede');
+      glow.addColorStop(0.55, '#595959');
+      glow.addColorStop(1, '#121212');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, size, size);
+
+      // Organic overlapping ribbons
+      for (let i = 0; i < 9; i++) {
+        ctx.fillStyle = `rgba(${240 - i * 22}, ${240 - i * 22}, ${240 - i * 22}, 0.55)`;
+        ctx.beginPath();
+        ctx.ellipse(
+          size * (0.35 + 0.04 * i),
+          size * (0.35 + 0.03 * i),
+          220 - i * 14,
+          310 - i * 18,
+          i * 0.25,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+    } else {
+      // Calibration gradient
+      const g = ctx.createLinearGradient(0, 0, size, 0);
+      g.addColorStop(0, '#000000');
+      g.addColorStop(1, '#ffffff');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+
+      // Step bars at bottom
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const v = Math.round((i / (steps - 1)) * 255);
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.fillRect((i * size) / steps, size * 0.82, size / steps + 1, size * 0.18);
+      }
+    }
+
+    setSourceCanvas(c);
+  }
+
+  function loadImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      showToast('請選擇有效的圖片檔案 (PNG / JPG / WebP)。');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      setSourceCanvas(c);
+      showToast(`已載入圖片：${c.width} × ${c.height}`);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      showToast('圖片載入失敗，請嘗試其他檔案。');
+    };
+    img.src = url;
+  }
+
+  el.fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      loadImageFile(e.target.files[0]);
+      e.target.value = '';
+    }
+  });
+
+  // Drag & drop
+  ['dragenter', 'dragover'].forEach(ev => {
+    el.viewport.addEventListener(ev, (e) => {
+      e.preventDefault();
+      el.dropOverlay.classList.remove('hidden');
+    });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    el.viewport.addEventListener(ev, (e) => {
+      e.preventDefault();
+      el.dropOverlay.classList.add('hidden');
+    });
+  });
+  el.viewport.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      loadImageFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  el.sampleSelect.addEventListener('change', (e) => {
+    el.sampleSelectMobile.value = e.target.value;
+    generateSampleImage(e.target.value);
+  });
+  el.sampleSelectMobile.addEventListener('change', (e) => {
+    el.sampleSelect.value = e.target.value;
+    generateSampleImage(e.target.value);
+  });
+
+  // =========================================================================
+  // 6. UI Controls & Presets Binding
+  // =========================================================================
+  const PRESETS = {
+    washi: {
+      mappingMode: 2, invert: false, contrast: 1.10, brightness: 0.0, gamma: 1.0,
+      scale: 36, waves: 2.4, rotation: 3.14159, radius: 0.20, radiusMod: 0.65,
+      blend: 0.125, useThreshold: true, threshold: 0.50, aaWidth: 1.5,
+      paperColor: '#f3ede0', inkColor: '#1c1917'
+    },
+    woodblock: {
+      mappingMode: 1, invert: false, contrast: 1.25, brightness: 0.0, gamma: 1.0,
+      scale: 48, waves: 1.8, rotation: 2.2, radius: 0.35, radiusMod: 0.50,
+      blend: 0.08, useThreshold: true, threshold: 0.52, aaWidth: 0.9,
+      paperColor: '#ffffff', inkColor: '#09090b'
+    },
+    fiberfield: {
+      mappingMode: 0, invert: false, contrast: 1.05, brightness: 0.0, gamma: 1.0,
+      scale: 28, waves: 3.2, rotation: 3.14159, radius: 0.05, radiusMod: 0.85,
+      blend: 0.20, useThreshold: false, threshold: 0.50, aaWidth: 2.0,
+      paperColor: '#f7f5f0', inkColor: '#18181b'
+    },
+    aizome: {
+      mappingMode: 3, invert: false, contrast: 1.15, brightness: 0.02, gamma: 0.95,
+      scale: 55, waves: 2.8, rotation: 4.2, radius: 0.15, radiusMod: 0.70,
+      blend: 0.11, useThreshold: true, threshold: 0.48, aaWidth: 1.4,
+      paperColor: '#eef3f8', inkColor: '#16324f'
+    }
+  };
+
+  function syncUIFromState() {
+    const p = state.params;
+    el.mappingMode.value = String(p.mappingMode);
+    el.invertGray.checked = p.invert;
+    el.contrast.value = p.contrast;
+    el.brightness.value = p.brightness;
+    el.gamma.value = p.gamma;
+    el.scale.value = p.scale;
+    el.waves.value = p.waves;
+    el.rotation.value = p.rotation;
+    el.radius.value = p.radius;
+    el.radiusMod.value = p.radiusMod;
+    el.blend.value = p.blend;
+    el.useThreshold.checked = p.useThreshold;
+    el.invertColor.checked = p.invertColor;
+    el.threshold.value = p.threshold;
+    el.aaWidth.value = p.aaWidth;
+    el.paperColor.value = p.paperColor;
+    el.inkColor.value = p.inkColor;
+
+    el.valContrast.textContent = p.contrast.toFixed(2);
+    el.valBrightness.textContent = p.brightness.toFixed(2);
+    el.valGamma.textContent = p.gamma.toFixed(2);
+    el.valScale.textContent = p.scale.toFixed(1);
+    el.valWaves.textContent = p.waves.toFixed(2);
+    el.valRotation.textContent = p.rotation.toFixed(2);
+    el.valRadius.textContent = p.radius.toFixed(2);
+    el.valRadiusMod.textContent = p.radiusMod.toFixed(2);
+    el.valBlend.textContent = p.blend.toFixed(3);
+    el.valThreshold.textContent = p.threshold.toFixed(2);
+    el.valAA.textContent = p.aaWidth.toFixed(2);
+
+    el.thresholdGroup.classList.toggle('opacity-40', !p.useThreshold);
+    el.thresholdGroup.classList.toggle('pointer-events-none', !p.useThreshold);
+  }
+
+  function bindControl(input, key, isFloat = true) {
+    input.addEventListener('input', () => {
+      state.params[key] = isFloat ? parseFloat(input.value) : parseInt(input.value, 10);
+      syncUIFromState();
+      requestRender();
+    });
+  }
+
+  bindControl(el.mappingMode, 'mappingMode', false);
+  bindControl(el.contrast, 'contrast');
+  bindControl(el.brightness, 'brightness');
+  bindControl(el.gamma, 'gamma');
+  bindControl(el.scale, 'scale');
+  bindControl(el.waves, 'waves');
+  bindControl(el.rotation, 'rotation');
+  bindControl(el.radius, 'radius');
+  bindControl(el.radiusMod, 'radiusMod');
+  bindControl(el.blend, 'blend');
+  bindControl(el.threshold, 'threshold');
+  bindControl(el.aaWidth, 'aaWidth');
+
+  el.invertGray.addEventListener('change', () => {
+    state.params.invert = el.invertGray.checked;
+    requestRender();
+  });
+  el.useThreshold.addEventListener('change', () => {
+    state.params.useThreshold = el.useThreshold.checked;
+    syncUIFromState();
+    requestRender();
+  });
+  el.invertColor.addEventListener('change', () => {
+    state.params.invertColor = el.invertColor.checked;
+    requestRender();
+  });
+  el.paperColor.addEventListener('input', () => {
+    state.params.paperColor = el.paperColor.value;
+    requestRender();
+  });
+  el.inkColor.addEventListener('input', () => {
+    state.params.inkColor = el.inkColor.value;
+    requestRender();
+  });
+
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = PRESETS[btn.dataset.preset];
+      if (!preset) return;
+      Object.assign(state.params, preset);
+      syncUIFromState();
+      requestRender();
+    });
+  });
+
+  el.btnResetParams.addEventListener('click', () => {
+    Object.assign(state.params, PRESETS.washi);
+    syncUIFromState();
+    requestRender();
+  });
+
+  // View mode buttons
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = btn.dataset.view;
+      state.viewMode = m === 'result' ? 0 : m === 'split' ? 1 : 2;
+      document.querySelectorAll('.view-btn').forEach(b => {
+        const active = b.dataset.view === m;
+        b.classList.toggle('bg-zinc-700', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('text-zinc-400', !active);
+      });
+      requestRender();
+    });
+  });
+
+  // =========================================================================
+  // 7. High-Resolution Tiled PNG Export
+  // =========================================================================
+  let exportAborted = false;
+
+  function updateExportPresetLabels() {
+    const w = state.imgWidth;
+    const h = state.imgHeight;
+    el.expDim1x.textContent = `${w} × ${h}`;
+    el.expDim2x.textContent = `${w * 2} × ${h * 2}`;
+    el.expDim4x.textContent = `${w * 4} × ${h * 4}`;
+    el.exportWidth.value = w;
+    el.exportHeight.value = h;
+  }
+
+  document.querySelectorAll('.exp-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.exp-preset-btn').forEach(b => {
+        b.classList.remove('bg-amber-400/15', 'border-amber-400/60');
+        b.classList.add('bg-zinc-800/80', 'border-zinc-700');
+      });
+      btn.classList.remove('bg-zinc-800/80', 'border-zinc-700');
+      btn.classList.add('bg-amber-400/15', 'border-amber-400/60');
+
+      const s = btn.dataset.scale;
+      if (s !== 'custom') {
+        const mul = parseInt(s, 10);
+        el.exportWidth.value = Math.min(12288, state.imgWidth * mul);
+        el.exportHeight.value = Math.min(12288, state.imgHeight * mul);
+      }
+    });
+  });
+
+  el.btnOpenExport.addEventListener('click', () => {
+    updateExportPresetLabels();
+    el.exportProgressWrap.classList.add('hidden');
+    el.btnStartExport.disabled = false;
+    el.exportModal.classList.remove('hidden');
+  });
+
+  function closeExportModal() {
+    exportAborted = true;
+    el.exportModal.classList.add('hidden');
+  }
+  el.btnCloseExport.addEventListener('click', closeExportModal);
+  el.btnCancelExport.addEventListener('click', closeExportModal);
+
+  el.btnStartExport.addEventListener('click', async () => {
+    const targetW = Math.max(64, Math.min(12288, parseInt(el.exportWidth.value, 10) || state.imgWidth));
+    const targetH = Math.max(64, Math.min(12288, parseInt(el.exportHeight.value, 10) || state.imgHeight));
+
+    exportAborted = false;
+    el.btnStartExport.disabled = true;
+    el.exportProgressWrap.classList.remove('hidden');
+
+    const tileSize = 1024;
+    const cols = Math.ceil(targetW / tileSize);
+    const rows = Math.ceil(targetH / tileSize);
+    const totalTiles = cols * rows;
+
+    const tileCanvas = document.createElement('canvas');
+    tileCanvas.width = tileSize;
+    tileCanvas.height = tileSize;
+    const tileEngine = createGLContext(tileCanvas);
+    if (!tileEngine) {
+      showToast('無法建立高解析度離線算圖環境。');
+      el.btnStartExport.disabled = false;
+      return;
+    }
+    uploadTexture(tileEngine, currentSourceCanvas);
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = targetW;
+    outCanvas.height = targetH;
+    const outCtx = outCanvas.getContext('2d');
+
+    let done = 0;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (exportAborted) return;
+
+        const tileX = col * tileSize;
+        // WebGL origin is bottom-left, Canvas 2D origin is top-left
+        const tileY_gl = row * tileSize;
+        const curW = Math.min(tileSize, targetW - tileX);
+        const curH = Math.min(tileSize, targetH - tileY_gl);
+
+        if (tileCanvas.width !== curW || tileCanvas.height !== curH) {
+          tileCanvas.width = curW;
+          tileCanvas.height = curH;
+        }
+
+        drawScene(tileEngine, targetW, targetH, tileX, tileY_gl, curW, curH, 0);
+
+        const destY = targetH - tileY_gl - curH;
+        outCtx.drawImage(tileCanvas, 0, 0, curW, curH, tileX, destY, curW, curH);
+
+        done++;
+        const pct = Math.round((done / totalTiles) * 100);
+        el.exportStatusText.textContent = `算圖分塊 ${done} / ${totalTiles}...`;
+        el.exportPercentText.textContent = `${pct}%`;
+        el.exportProgressBar.style.width = `${pct}%`;
+
+        await new Promise(r => setTimeout(r, 12));
+      }
+    }
+
+    el.exportStatusText.textContent = '正在編碼 PNG 檔案...';
+    outCanvas.toBlob((blob) => {
+      if (!blob) {
+        showToast('PNG 編碼失敗，請嘗試較小的解析度。');
+        el.btnStartExport.disabled = false;
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kamisuki_${targetW}x${targetH}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      el.btnStartExport.disabled = false;
+      el.exportModal.classList.add('hidden');
+      showToast(`已成功匯出 ${targetW} × ${targetH} PNG！`);
+    }, 'image/png');
+  });
+
+  // =========================================================================
+  // 8. GLSL Code Modal & Toast
+  // =========================================================================
+  el.btnShaderModal.addEventListener('click', () => {
+    el.shaderCodeView.textContent = FRAG_SRC.trim();
+    el.shaderModal.classList.remove('hidden');
+  });
+  el.btnCloseShader.addEventListener('click', () => el.shaderModal.classList.add('hidden'));
+  el.btnCopyShader.addEventListener('click', () => {
+    const text = el.shaderCodeView.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => showToast('已複製 GLSL 程式碼！')).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  });
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('已複製 GLSL 程式碼！');
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.add('hidden'), 2800);
+  }
+
+  // Initialize
+  syncUIFromState();
+  generateSampleImage('sphere');
+})();
+</script>
+</body>
+</html>
